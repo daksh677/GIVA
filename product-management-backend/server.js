@@ -40,15 +40,11 @@ pool.connect((err, client, release) => {
 });
 
 // Database initialization
+// Update the initializeDatabase function in server.js
 const initializeDatabase = async () => {
     try {
-        // Drop existing tables if they exist
-        await pool.query(`
-            DROP TABLE IF EXISTS products CASCADE;
-            DROP TABLE IF EXISTS users CASCADE;
-        `);
-
-        // Create users table
+        // Remove the DROP TABLE commands
+        // Only create tables if they don't exist
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -59,7 +55,6 @@ const initializeDatabase = async () => {
             )
         `);
 
-        // Create products table with user_id reference
         await pool.query(`
             CREATE TABLE IF NOT EXISTS products (
                 id SERIAL PRIMARY KEY,
@@ -72,13 +67,16 @@ const initializeDatabase = async () => {
             )
         `);
 
-        // Create default admin user
-        const adminPassword = await bcrypt.hash('admin123', 10);
-        await pool.query(`
-            INSERT INTO users (name, email, password, is_admin)
-            VALUES ('Admin', 'admin@example.com', $1, true)
-            ON CONFLICT (email) DO NOTHING
-        `, [adminPassword]);
+        // Check if admin exists before creating
+        const adminExists = await pool.query('SELECT * FROM users WHERE email = $1', ['admin@example.com']);
+        
+        if (adminExists.rows.length === 0) {
+            const adminPassword = await bcrypt.hash('admin123', 10);
+            await pool.query(`
+                INSERT INTO users (name, email, password, is_admin)
+                VALUES ('Admin', 'admin@example.com', $1, true)
+            `, [adminPassword]);
+        }
 
         console.log('Database initialized successfully');
     } catch (err) {
@@ -125,7 +123,7 @@ app.post('/api/auth/signup', async (req, res) => {
             'SELECT * FROM users WHERE email = $1',
             [email]
         );
-
+ 
         if (userExists.rows.length > 0) {
             return res.status(400).json({ message: 'User already exists' });
         }
